@@ -318,3 +318,104 @@ def del_vxlan_map_range(db, vxlan_name, vlan_start, vlan_end, vni_start):
        except JsonPatchConflict as e:
            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
 
+@vxlan.group('remote')
+def vxlan_remote():
+    pass
+
+@vxlan_remote.command('add')
+@click.argument('vxlan_name', metavar='<vxlan_name>', required=True)
+@click.argument('src_ip', metavar='<src_ip>', required=True)
+@clicommon.pass_db
+def add_remote_vtep(db, vxlan_name, src_ip):
+    """Add remote VTEP"""
+    ctx = click.get_current_context()
+    config_db = ValidatedConfigDBConnector(db.cfgdb)
+
+    if ADHOC_VALIDATION:
+        if not clicommon.is_ipaddress(src_ip):
+            ctx.fail("{} invalid src ip address".format(src_ip))  
+
+    fvs = {'src_ip': src_ip}
+    try:
+        config_db.set_entry('VXLAN_REMOTE_TUNNEL', vxlan_name, fvs)
+    except ValueError as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+@vxlan_remote.command('del')
+@click.argument('vxlan_name', metavar='<vxlan_name>', required=True)
+@clicommon.pass_db
+def del_remote_vtep(db, vxlan_name):
+    """Del VXLAN"""
+    ctx = click.get_current_context()
+    config_db = ValidatedConfigDBConnector(db.cfgdb)
+
+    vxlan_keys = db.cfgdb.get_keys('VXLAN_REMOTE_TUNNEL')
+    if vxlan_name not in vxlan_keys:
+        ctx.fail("Vxlan remote tunnel {} does not exist".format(vxlan_name))
+
+    vxlan_keys = db.cfgdb.get_keys("VXLAN_REMOTE_TUNNEL_MAP|*")
+    if not vxlan_keys:
+      vxlan_count = 0
+    else:
+      vxlan_count = len(vxlan_keys)
+
+    if(vxlan_count > 0):
+        ctx.fail("Please delete all VLAN VNI mappings.")  
+
+    try:
+        config_db.set_entry('VXLAN_REMOTE_TUNNEL', vxlan_name, None)
+    except JsonPatchConflict as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+@vxlan_remote.group('map')
+def vxlan_remote_map():
+    pass
+
+@vxlan_remote_map.command('add')
+@click.argument('vxlan_name', metavar='<vxlan_name>', required=True)
+@click.argument('vni', metavar='<vni>', required=True)
+@clicommon.pass_db
+def add_vxlan_remote_map(db, vxlan_name, vni):
+    """Add remote VTEP-VNI map entry"""
+    ctx = click.get_current_context()
+    config_db = ValidatedConfigDBConnector(db.cfgdb)
+
+    if not vni.isdigit():
+        ctx.fail("Invalid VNI {}. Only valid VNI is accepted".format(vni))
+    if clicommon.vni_id_is_valid(int(vni)) is False:
+        ctx.fail("Invalid VNI {}. Valid range [1 to 16777215].".format(vni))
+
+    if len(db.cfgdb.get_entry('VXLAN_REMOTE_TUNNEL', vxlan_name)) == 0:
+        ctx.fail("Remote VTEP {} not configured".format(vxlan_name))
+
+    mapname = vxlan_name + '|' + 'map_' + vni
+    fvs = {'vni': vni}
+    try:
+        config_db.set_entry('VXLAN_REMOTE_TUNNEL_MAP', mapname, fvs)
+    except ValueError as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+@vxlan_remote_map.command('del')
+@click.argument('vxlan_name', metavar='<vxlan_name>', required=True)
+@click.argument('vni', metavar='<vni>', required=True)
+@clicommon.pass_db
+def del_vxlan_remote_map(db, vxlan_name, vni):
+    """Del remote VTEP-VNI map entry"""
+    ctx = click.get_current_context()
+    config_db = ValidatedConfigDBConnector(db.cfgdb)
+
+    if not vni.isdigit():
+        ctx.fail("Invalid VNI {}. Only valid VNI is accepted".format(vni))
+    if clicommon.vni_id_is_valid(int(vni)) is False:
+        ctx.fail("Invalid VNI {}. Valid range [1 to 16777215].".format(vni))
+
+    if len(db.cfgdb.get_entry('VXLAN_REMOTE_TUNNEL', vxlan_name)) == 0:
+        ctx.fail("VTEP {} not configured".format(vxlan_name))
+
+    mapname = vxlan_name + '|' + 'map_' + vni
+    db.cfgdb.set_entry('VXLAN_REMOTE_TUNNEL_MAP', mapname, None)
+    try:
+        config_db.set_entry('VXLAN_REMOTE_TUNNEL_MAP', mapname, None)
+    except JsonPatchConflict as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+

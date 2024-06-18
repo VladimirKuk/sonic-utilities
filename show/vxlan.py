@@ -105,6 +105,36 @@ def interface():
 
           click.echo(output)
 
+    vxlan_table = config_db.get_table('VXLAN_REMOTE_TUNNEL')
+    vxlan_keys = vxlan_table.keys()
+    vtep_dip = '0.0.0.0'
+    if vxlan_keys is not None:
+      for key in natsorted(vxlan_keys):
+          key1 = key.split('|',1)
+          vtepname = key1.pop();
+          if 'src_ip' in vxlan_table[key]:
+            vtep_dip = vxlan_table[key]['src_ip']
+          if vtep_dip != '0.0.0.0':
+             output = '\tRemote VTEP Name : ' + vtepname + ', SIP  : ' + vxlan_table[key]['src_ip']
+          else:
+             output = '\tRemote VTEP Name : ' + vtepname
+
+          click.echo(output)
+
+    vxlan_table = config_db.get_table('VXLAN_REMOTE_TUNNEL_MAP')
+    vxlan_keys = vxlan_table.keys()
+    body = []
+    header = ['VTEP', 'VNI']
+    num=0
+    if vxlan_keys is not None:
+      for key in natsorted(vxlan_keys):
+          body.append([key[0], vxlan_table[key]['vni']])
+          num += 1
+    click.echo(tabulate(body, header, tablefmt="grid"))
+    output = 'Total count : '
+    output += ('%s\n' % (str(num)))
+    click.echo(output)
+
     if vtep_sip != '0.0.0.0':
        vxlan_table = config_db.get_table('VXLAN_EVPN_NVO')
        vxlan_keys = vxlan_table.keys()
